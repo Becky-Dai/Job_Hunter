@@ -92,22 +92,34 @@
       </div>
     </div>
 
-    <!-- Right: Analysis output -->
+    <!-- Right: Analysis + Plan tabs -->
     <div class="flex flex-col flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-        <span class="text-sm font-semibold text-slate-700">分析报告</span>
+      <!-- Tab bar -->
+      <div class="flex items-center justify-between border-b border-slate-100 px-2 flex-shrink-0">
+        <div class="flex">
+          <button id="tabAnalysis" onclick="switchTab('analysis')"
+            class="tab-btn px-4 py-2.5 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 transition">
+            分析报告
+          </button>
+          <button id="tabPlan" onclick="switchTab('plan')"
+            class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-400 border-b-2 border-transparent
+                   disabled:cursor-not-allowed transition" disabled>
+            学习计划
+          </button>
+        </div>
         <button id="downloadBtn" onclick="downloadReport()"
           class="hidden items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800
-                 border border-indigo-200 hover:border-indigo-400 rounded-lg px-3 py-1.5 transition">
+                 border border-indigo-200 hover:border-indigo-400 rounded-lg px-3 py-1.5 mr-1 transition">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
           </svg>
-          下载报告
+          下载
         </button>
       </div>
+
+      <!-- Panel content -->
       <div id="analysisPanel" class="flex-1 overflow-y-auto p-5">
-        <!-- Empty state -->
         <div id="emptyState" class="flex flex-col items-center justify-center h-full text-slate-300 gap-3">
           <svg class="w-14 h-14 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
@@ -121,7 +133,9 @@
   </div>
 
   <script>
-    let _lastMarkdown = "";
+    let _analysisMarkdown = "";
+    let _planMarkdown = "";
+    let _currentTab = "analysis";
 
     function clearJd() {
       document.getElementById("jdInput").value = "";
@@ -143,15 +157,80 @@
       document.getElementById("errorBox").classList.add("hidden");
     }
 
-    function setLoading(on) {
+    function setLoading(on, label = "分析中...") {
       const btn = document.getElementById("analyzeBtn");
       btn.disabled = on;
-      document.getElementById("btnText").textContent = on ? "分析中..." : "开始分析";
+      document.getElementById("btnText").textContent = on ? label : "开始分析";
       const icon = document.getElementById("btnIcon");
       if (on) {
         icon.outerHTML = `<div id="btnIcon" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite"></div>`;
       } else {
         document.getElementById("btnIcon").outerHTML = `<svg id="btnIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`;
+      }
+    }
+
+    function switchTab(tab) {
+      _currentTab = tab;
+      const isAnalysis = tab === "analysis";
+
+      // Tab styles
+      document.getElementById("tabAnalysis").className =
+        `tab-btn px-4 py-2.5 text-sm transition ${isAnalysis
+          ? "font-semibold text-indigo-600 border-b-2 border-indigo-600"
+          : "font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600"}`;
+      document.getElementById("tabPlan").className =
+        `tab-btn px-4 py-2.5 text-sm transition ${!isAnalysis
+          ? "font-semibold text-indigo-600 border-b-2 border-indigo-600"
+          : "font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600"}`;
+
+      // Download button label
+      const dlBtn = document.getElementById("downloadBtn");
+
+      if (isAnalysis) {
+        if (_analysisMarkdown) {
+          setPanel(`<div id="analysis" class="text-sm text-slate-700 leading-relaxed">${marked.parse(_analysisMarkdown)}</div>`);
+          dlBtn.classList.remove("hidden"); dlBtn.classList.add("flex");
+        }
+      } else {
+        if (_planMarkdown) {
+          setPanel(`<div id="plan" class="text-sm text-slate-700 leading-relaxed">${marked.parse(_planMarkdown)}</div>`);
+          dlBtn.classList.remove("hidden"); dlBtn.classList.add("flex");
+        } else {
+          loadPlan();
+        }
+      }
+    }
+
+    function setPanel(html) {
+      document.getElementById("analysisPanel").innerHTML = html;
+    }
+
+    async function loadPlan() {
+      const jd = document.getElementById("jdInput").value.trim();
+      const file = document.getElementById("resumeFile").files[0];
+      if (!jd || !file) return;
+
+      setPanel(`<div class="flex flex-col items-center justify-center h-full gap-4">
+        <div class="spinner"></div>
+        <p class="text-slate-400 text-sm">正在生成学习计划（约 30–50 秒）...</p>
+      </div>`);
+      document.getElementById("downloadBtn").classList.add("hidden");
+      document.getElementById("downloadBtn").classList.remove("flex");
+
+      const form = new FormData();
+      form.append("resume", file);
+      form.append("jd_text", jd);
+
+      try {
+        const resp = await fetch("/api/plan", { method: "POST", body: form });
+        const data = await resp.json();
+        if (!resp.ok) { setPanel(`<p class="text-red-500 text-sm p-4">${data.error || "生成失败，请重试"}</p>`); return; }
+        _planMarkdown = data.plan;
+        setPanel(`<div id="plan" class="text-sm text-slate-700 leading-relaxed">${marked.parse(_planMarkdown)}</div>`);
+        document.getElementById("downloadBtn").classList.remove("hidden");
+        document.getElementById("downloadBtn").classList.add("flex");
+      } catch {
+        setPanel(`<p class="text-red-500 text-sm p-4">网络错误，请重试</p>`);
       }
     }
 
@@ -163,16 +242,21 @@
       if (!jd) return showError("请先粘贴 JD 内容");
       if (!file) return showError("请先上传简历文件");
 
-      setLoading(true);
-      document.getElementById("downloadBtn").classList.replace("flex", "hidden");
+      // Reset state
+      _analysisMarkdown = "";
+      _planMarkdown = "";
+      switchTab("analysis");
+      const planTab = document.getElementById("tabPlan");
+      planTab.disabled = true;
+      planTab.classList.add("opacity-40", "cursor-not-allowed");
+
+      setLoading(true, "分析中...");
       document.getElementById("downloadBtn").classList.add("hidden");
-      document.getElementById("emptyState")?.remove();
-      document.getElementById("analysis")?.remove();
-      document.getElementById("analysisPanel").innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full gap-4">
-          <div class="spinner"></div>
-          <p class="text-slate-400 text-sm">正在分析，请稍候（约 20–40 秒）...</p>
-        </div>`;
+      document.getElementById("downloadBtn").classList.remove("flex");
+      setPanel(`<div class="flex flex-col items-center justify-center h-full gap-4">
+        <div class="spinner"></div>
+        <p class="text-slate-400 text-sm">正在分析，请稍候（约 20–40 秒）...</p>
+      </div>`);
 
       const form = new FormData();
       form.append("resume", file);
@@ -181,33 +265,33 @@
       try {
         const resp = await fetch("/api/analyze", { method: "POST", body: form });
         const data = await resp.json();
-        if (!resp.ok) return showError(data.error || "分析失败，请重试");
+        if (!resp.ok) { showError(data.error || "分析失败，请重试"); return; }
 
-        _lastMarkdown = data.analysis;
-        document.getElementById("analysisPanel").innerHTML =
-          `<div id="analysis" class="text-sm text-slate-700 leading-relaxed">${marked.parse(data.analysis)}</div>`;
+        _analysisMarkdown = data.analysis;
+        setPanel(`<div id="analysis" class="text-sm text-slate-700 leading-relaxed">${marked.parse(data.analysis)}</div>`);
+        document.getElementById("downloadBtn").classList.remove("hidden");
+        document.getElementById("downloadBtn").classList.add("flex");
 
-        const btn = document.getElementById("downloadBtn");
-        btn.classList.remove("hidden");
-        btn.classList.add("flex");
+        // Enable plan tab
+        planTab.disabled = false;
+        planTab.classList.remove("opacity-40", "cursor-not-allowed");
       } catch {
         showError("网络错误，请检查连接后重试");
-        document.getElementById("analysisPanel").innerHTML = `
-          <div id="emptyState" class="flex flex-col items-center justify-center h-full text-slate-300 gap-3">
-            <p class="text-sm">分析失败，请重试</p>
-          </div>`;
+        setPanel(`<div class="flex flex-col items-center justify-center h-full text-slate-300 gap-3"><p class="text-sm">分析失败，请重试</p></div>`);
       } finally {
         setLoading(false);
       }
     }
 
     function downloadReport() {
-      if (!_lastMarkdown) return;
+      const md = _currentTab === "plan" ? _planMarkdown : _analysisMarkdown;
+      if (!md) return;
+      const label = _currentTab === "plan" ? "学习计划" : "分析报告";
       const ts = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "-");
-      const blob = new Blob([_lastMarkdown], { type: "text/markdown;charset=utf-8" });
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `分析报告_${ts}.md`;
+      a.download = `${label}_${ts}.md`;
       a.click();
       URL.revokeObjectURL(a.href);
     }
