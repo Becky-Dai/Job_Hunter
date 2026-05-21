@@ -1,0 +1,4 @@
+flask
+openai-agents
+pdfplumber
+python-docx
