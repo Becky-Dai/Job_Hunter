@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Match AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .job-card.selected { border-color: #4f46e5; background-color: #eef2ff; }
+    .job-card:hover { border-color: #a5b4fc; }
+    #analysisContent h1,h2,h3 { font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    #analysisContent h2 { font-size: 1.1rem; color: #1e1b4b; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+    #analysisContent h3 { font-size: 1rem; color: #4338ca; }
+    #analysisContent ul { list-style: disc; padding-left: 1.4rem; margin: 0.4rem 0; }
+    #analysisContent li { margin: 0.25rem 0; }
+    #analysisContent p { margin: 0.4rem 0; line-height: 1.65; }
+    #analysisContent strong { color: #1e1b4b; }
+    .spinner { border: 3px solid #e5e7eb; border-top-color: #4f46e5; border-radius: 50%; width: 28px; height: 28px; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-indigo-700 text-white px-6 py-4 flex items-center gap-3 shadow">
+    <svg class="w-6 h-6 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+    </svg>
+    <div>
+      <h1 class="text-lg font-bold leading-tight">Job Match AI</h1>
+      <p class="text-indigo-200 text-xs">上传简历 · 搜索职位 · 智能匹配分析</p>
+    </div>
+  </header>
+
+  <!-- Upload Form -->
+  <div class="px-6 pt-5 pb-3">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div class="flex flex-wrap gap-4 items-end">
+
+        <!-- Resume upload -->
+        <div class="flex-shrink-0">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">简历</label>
+          <label id="fileLabel"
+            class="flex items-center gap-2 cursor-pointer border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-lg px-4 py-2.5 text-sm text-slate-500 transition">
+            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <span id="fileName">上传 PDF / Word</span>
+            <input type="file" id="resumeFile" accept=".pdf,.docx" class="hidden" onchange="onFileChange(this)" />
+          </label>
+        </div>
+
+        <!-- Location -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">地区</label>
+          <input id="location" type="text" placeholder="如 Perth" value="Perth"
+            class="border border-slate-300 rounded-lg px-3 py-2.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+
+        <!-- Job title -->
+        <div class="flex-1 min-w-48">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">职位</label>
+          <input id="jobTitle" type="text" placeholder="如 Graduate Developer" value="Graduate Developer"
+            class="border border-slate-300 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+
+        <!-- Search button -->
+        <button id="searchBtn" onclick="doSearch()"
+          class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-5 py-2.5 rounded-lg text-sm transition">
+          <svg id="searchIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <span id="searchText">搜索职位</span>
+        </button>
+      </div>
+
+      <!-- Error bar -->
+      <div id="errorBar" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2"></div>
+    </div>
+  </div>
+
+  <!-- Two Panels -->
+  <div class="flex gap-4 px-6 pb-6 flex-1 min-h-0" style="height: calc(100vh - 185px)">
+
+    <!-- Left: Job list -->
+    <div class="w-80 flex-shrink-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+        <span class="text-sm font-semibold text-slate-700">匹配职位</span>
+        <span id="jobCount" class="text-xs text-slate-400"></span>
+      </div>
+      <div id="jobList" class="flex-1 overflow-y-auto p-3 space-y-2">
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-2 py-12">
+          <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <p>搜索后显示匹配职位</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Analysis -->
+    <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <span id="analysisTitle" class="text-sm font-semibold text-slate-700">分析报告</span>
+        <button id="downloadBtn" onclick="downloadAnalysis()" class="hidden items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 rounded-lg px-3 py-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          下载报告
+        </button>
+      </div>
+      <div id="analysisPanel" class="flex-1 overflow-y-auto p-6">
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-2">
+          <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+          <p>点击左侧职位查看匹配分析</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentSid = null;
+    let selectedIndex = null;
+    const _analysisCache = {}; // cardIndex -> {markdown, title, company}
+
+    function onFileChange(input) {
+      const name = input.files[0]?.name;
+      document.getElementById("fileName").textContent = name || "上传 PDF / Word";
+    }
+
+    function showError(msg) {
+      const bar = document.getElementById("errorBar");
+      bar.textContent = msg;
+      bar.classList.remove("hidden");
+    }
+
+    function clearError() {
+      document.getElementById("errorBar").classList.add("hidden");
+    }
+
+    function setSearchLoading(loading) {
+      const btn = document.getElementById("searchBtn");
+      const icon = document.getElementById("searchIcon");
+      const text = document.getElementById("searchText");
+      btn.disabled = loading;
+      if (loading) {
+        icon.outerHTML = `<div id="searchIcon" class="spinner" style="width:16px;height:16px;border-width:2px;border-top-color:white"></div>`;
+        text.textContent = "搜索中...";
+      } else {
+        document.getElementById("searchIcon").outerHTML = `<svg id="searchIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>`;
+        text.textContent = "搜索职位";
+      }
+    }
+
+    async function doSearch() {
+      clearError();
+      const file = document.getElementById("resumeFile").files[0];
+      const location = document.getElementById("location").value.trim();
+      const jobTitle = document.getElementById("jobTitle").value.trim();
+
+      if (!file) return showError("请选择简历文件（PDF 或 Word）");
+      if (!location) return showError("请填写地区");
+      if (!jobTitle) return showError("请填写职位");
+
+      setSearchLoading(true);
+      selectedIndex = null;
+      document.getElementById("jobList").innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full gap-3 py-12">
+          <div class="spinner"></div>
+          <p class="text-slate-400 text-sm">正在搜索并筛选职位...</p>
+        </div>`;
+      document.getElementById("analysisPanel").innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-2">
+          <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+          <p>点击左侧职位查看匹配分析</p>
+        </div>`;
+      document.getElementById("analysisTitle").textContent = "分析报告";
+
+      const form = new FormData();
+      form.append("resume", file);
+      form.append("location", location);
+      form.append("job_title", jobTitle);
+
+      try {
+        const resp = await fetch("/api/search", { method: "POST", body: form });
+        const data = await resp.json();
+        if (!resp.ok) return showError(data.error || "搜索失败，请重试");
+
+        currentSid = data.sid;
+        Object.keys(_analysisCache).forEach(k => delete _analysisCache[k]);
+        renderJobList(data.jobs);
+        document.getElementById("jobCount").textContent = `${data.jobs.length} 个结果`;
+      } catch (e) {
+        showError("网络错误，请检查连接后重试");
+      } finally {
+        setSearchLoading(false);
+      }
+    }
+
+    function renderJobList(jobs) {
+      const list = document.getElementById("jobList");
+      if (!jobs || jobs.length === 0) {
+        list.innerHTML = `<p class="text-slate-400 text-sm text-center py-8">未找到符合条件的职位</p>`;
+        return;
+      }
+
+      const platformColor = url => url.includes("seek") ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700";
+      const platformName = url => url.includes("seek") ? "Seek" : "LinkedIn";
+
+      list.innerHTML = jobs.map((job, i) => `
+        <div class="job-card border-2 border-transparent rounded-lg p-3 cursor-pointer transition"
+          id="card-${i}" onclick="doAnalyze(${i})">
+          <div class="flex items-start justify-between gap-2 mb-1">
+            <span class="text-xs font-bold text-indigo-600 bg-indigo-50 rounded px-1.5 py-0.5">Top ${job.rank}</span>
+            <span class="text-xs font-medium px-1.5 py-0.5 rounded ${platformColor(job.url)}">${platformName(job.url)}</span>
+          </div>
+          <p class="font-semibold text-slate-800 text-sm leading-snug mt-1">${job.title}</p>
+          <p class="text-xs text-slate-500 mt-0.5">${job.company || ''}</p>
+          <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">${job.reason}</p>
+          <a href="${job.url}" target="_blank" onclick="event.stopPropagation()"
+            class="inline-block mt-2 text-xs text-indigo-500 hover:underline">查看原始职位 →</a>
+        </div>
+      `).join("");
+    }
+
+    async function doAnalyze(cardIndex) {
+      if (!currentSid) return;
+
+      // Update selected state
+      if (selectedIndex !== null) {
+        document.getElementById(`card-${selectedIndex}`)?.classList.remove("selected");
+      }
+      selectedIndex = cardIndex;
+      document.getElementById(`card-${cardIndex}`)?.classList.add("selected");
+
+      // Get job data from rendered card — re-fetch from server via stored jobs
+      const cards = document.querySelectorAll(".job-card");
+      const card = cards[cardIndex];
+      const title = card.querySelector("p.font-semibold").textContent;
+      document.getElementById("analysisTitle").textContent = title;
+
+      const job = window._jobs[cardIndex];
+
+      // Hit cache — no API call needed
+      if (_analysisCache[cardIndex]) {
+        showAnalysisResult(_analysisCache[cardIndex]);
+        return;
+      }
+
+      const dlBtn = document.getElementById("downloadBtn");
+      dlBtn.classList.add("hidden");
+      dlBtn.classList.remove("flex");
+      document.getElementById("analysisPanel").innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full gap-3">
+          <div class="spinner"></div>
+          <p class="text-slate-400 text-sm">正在分析匹配度，请稍候（约 20-40 秒）...</p>
+        </div>`;
+
+      try {
+        const resp = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sid: currentSid, job }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          document.getElementById("analysisPanel").innerHTML =
+            `<p class="text-red-500 text-sm">${data.error || "分析失败，请重试"}</p>`;
+          return;
+        }
+        const result = { markdown: data.analysis, title: job.title, company: job.company || '', url: job.url };
+        _analysisCache[cardIndex] = result;
+        showAnalysisResult(result);
+      } catch (e) {
+        document.getElementById("analysisPanel").innerHTML =
+          `<p class="text-red-500 text-sm">网络错误，请重试</p>`;
+      }
+    }
+
+    function showAnalysisResult(result) {
+      window._currentAnalysis = result;
+      const btn = document.getElementById("downloadBtn");
+      btn.classList.remove("hidden");
+      btn.classList.add("flex");
+      document.getElementById("analysisPanel").innerHTML =
+        `<div id="analysisContent" class="text-sm text-slate-700 leading-relaxed">${marked.parse(result.markdown)}</div>`;
+    }
+
+    function downloadAnalysis() {
+      if (!window._currentAnalysis) return;
+      const { markdown, title, company, url } = window._currentAnalysis;
+      const job = window._jobs[selectedIndex] || {};
+      const header = `# ${title}\n\n**公司**：${company || '—'}  \n**链接**：${job.url || url || '—'}\n\n---\n\n`;
+      const fullMarkdown = header + markdown;
+      const timestamp = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "-");
+      const safeName = (company ? `${title}_${company}` : title).replace(/[\/\\:*?"<>|]/g, "_");
+      const filename = `分析报告_${safeName}_${timestamp}.md`;
+      const blob = new Blob([fullMarkdown], { type: "text/markdown;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // Patch renderJobList to also store jobs globally
+    const _origRender = renderJobList;
+    window.renderJobList = function(jobs) {
+      window._jobs = jobs;
+      _origRender(jobs);
+    };
+    // Override original reference too
+    window._jobs = [];
+  </script>
+
+</body>
+</html>
