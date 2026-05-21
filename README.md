@@ -1,19 +1,29 @@
 # Job Match AI
 
-一个基于 DeepSeek 的求职简历分析工具，帮助你快速了解简历与目标 JD 的匹配程度，并给出具体的改进建议。
+一个基于 DeepSeek 的求职简历分析工具，帮助你快速了解简历与目标 JD 的匹配程度，提供具体的简历修改建议，并生成个性化的学习提升计划。
 
-A DeepSeek-powered job application assistant that analyzes how well your resume matches a target job description, and provides actionable improvement suggestions.
+A DeepSeek-powered job application assistant that analyzes how well your resume matches a target job description, provides actionable rewrite suggestions, and generates a personalized skill-up learning plan.
 
 ---
 
 ## 功能 Features
 
+### 分析报告 Analysis Report
 - **JD 解析** — 自动拆解职责、必备技能、加分项和隐藏筛选条件
 - **匹配分析** — 识别强匹配点、中等匹配点、可包装点和明显缺口
 - **匹配评分** — 0–100 分综合评分 + 评分依据
 - **简历修改建议** — 针对 Summary、Skills、Experience、Projects 给出具体改写示例
-- **补强路线** — 缺口技能 + 7 天 / 30 天行动计划
-- **一键下载报告** — 将分析结果导出为 Markdown 文件
+
+### 学习计划 Learning Plan
+- **技能差距分析** — 列出与 JD 要求之间最关键的差距
+- **推荐认证 & 课程** — AWS、Google、Coursera 等具体资源 + 预计完成时间
+- **7 天每日计划** — 按天拆解任务，含目标、具体行动和完成标准
+- **30 天四周计划** — 按周分主题，含里程碑检查点
+- **项目建议** — 2–3 个可写进简历的具体项目
+
+### 其他 Other
+- **双 Tab 切换** — 分析报告与学习计划独立展示，按需加载
+- **一键下载** — 两个 Tab 均可导出为 Markdown 文件
 
 ---
 
@@ -21,8 +31,26 @@ A DeepSeek-powered job application assistant that analyzes how well your resume 
 - **Resume Match Analysis** — Identifies strong matches, partial matches, packagable points, and gaps
 - **Match Score** — 0–100 score with reasoning
 - **Resume Rewrite Suggestions** — Concrete rewrites for Summary, Skills, Experience bullets, and Projects
-- **Skill-up Roadmap** — Missing skills + 7-day and 30-day action plans
-- **Download Report** — Export the full analysis as a Markdown file
+- **Skill Gap Analysis** — Key gaps between your resume and the JD
+- **Certifications & Courses** — Specific resources (AWS, Google, Coursera) with estimated completion time
+- **7-Day Daily Plan** — Day-by-day tasks with goals and completion criteria
+- **30-Day Weekly Roadmap** — Week-by-week themes with milestone checkpoints
+- **Project Suggestions** — 2–3 portfolio projects worth adding to your resume
+- **Download** — Export either tab as a Markdown file
+
+---
+
+## 界面预览 UI Overview
+
+```
+┌─────────────────┬──────────────────┬────────────────────────────────┐
+│   JD 输入        │   简历上传        │  [ 分析报告 ] [ 学习计划 ]      │
+│                 │                  │                                │
+│  粘贴完整 JD     │  PDF / Word      │  匹配分析 / 每日学习计划        │
+│                 │                  │                                │
+│                 │  [ 开始分析 ]     │                      [ 下载 ]  │
+└─────────────────┴──────────────────┴────────────────────────────────┘
+```
 
 ---
 
@@ -50,7 +78,7 @@ cd Job_Hunter
 ### 2. 安装依赖 Install dependencies
 
 ```bash
-pip install flask openai-agents pdfplumber python-docx
+pip install -r requirements.txt
 ```
 
 ### 3. 配置 API Key
@@ -82,16 +110,18 @@ python app.py
 ## 使用方法 Usage
 
 1. **左栏** — 将目标职位的完整 JD 粘贴进去
-2. **中栏** — 上传你的简历（支持 `.pdf` 和 `.docx`）
-3. 点击 **「开始分析」**
-4. **右栏** — 查看详细分析报告，点击「下载报告」导出 Markdown
+2. **中栏** — 上传你的简历（支持 `.pdf` 和 `.docx`），点击「开始分析」
+3. **右栏「分析报告」Tab** — 查看匹配分析和简历修改建议
+4. **右栏「学习计划」Tab** — 点击后自动生成个性化学习计划（仅调用一次 API）
+5. 点击「下载」导出当前 Tab 的 Markdown 报告
 
 ---
 
 1. **Left panel** — Paste the full job description
-2. **Middle panel** — Upload your resume (`.pdf` or `.docx`)
-3. Click **「开始分析」** (Analyze)
-4. **Right panel** — View the full report, click Download to save as Markdown
+2. **Middle panel** — Upload your resume and click「开始分析」(Analyze)
+3. **Right panel「分析报告」tab** — View match analysis and resume rewrite suggestions
+4. **Right panel「学习计划」tab** — Click to generate your personalized learning plan (one API call, cached)
+5. Click Download to export the current tab as a Markdown file
 
 ---
 
@@ -99,9 +129,10 @@ python app.py
 
 ```
 Job_Hunter/
-├── app.py                  # Flask backend + DeepSeek agent
+├── app.py                  # Flask backend + two DeepSeek agents
+├── requirements.txt        # Python dependencies
 ├── templates/
-│   └── index.html          # Three-panel frontend UI
+│   └── index.html          # Three-panel frontend UI with tabbed output
 ├── .gitignore
 └── README.md
 ```
@@ -111,5 +142,5 @@ Job_Hunter/
 ## 注意事项 Notes
 
 - 本项目使用 DeepSeek API，需保持账户余额充足。/ Requires a funded DeepSeek account.
-- 简历文件仅在本地处理，不会上传至任何第三方服务。/ Resume files are processed locally and never sent to third-party services.
-- 当前为开发模式，生产部署请替换为 Gunicorn 等 WSGI 服务器。/ For production, replace Flask dev server with a WSGI server like Gunicorn.
+- 简历文件仅在本地内存中处理，不会持久化或上传至任何第三方服务。/ Resume files are processed in memory only and never persisted or sent to third parties.
+- 当前为开发模式，生产部署请使用 Railway / Render 等平台或替换为 Gunicorn。/ For production, deploy via Railway / Render or use a WSGI server like Gunicorn.
